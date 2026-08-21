@@ -41,7 +41,10 @@ yarn.lock
 media/
 *.log
 
-# User footage + session outputs (never vendor source media into the skill repo)
+# Optional convenience staging spot for user footage — NOT required. Source
+# video can live in any folder anywhere on disk; <videos_dir>/edit/ is created
+# right next to it wherever that is. This entry just keeps this repo clean on
+# the sessions that happen to stage files here.
 raw-video/
 
 # Session artifacts if someone invokes the skill inside the project dir

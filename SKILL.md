@@ -30,13 +30,13 @@ These are the things where deviation produces silent failures or broken output. 
 9. **Cache transcripts per source.** Never re-transcribe unless the source file itself changed.
 10. **Parallel sub-agents for multiple animations.** Never sequential. Spawn N at once via the `Agent` tool; total wall time ≈ slowest one.
 11. **Strategy confirmation before execution.** Never touch the cut until the user has approved the plain-English plan.
-12. **All session outputs in `<videos_dir>/edit/`.** Never write inside the `video-use/` project directory.
+12. **All session outputs in `<videos_dir>/edit/`.** `<videos_dir>` is whatever folder the user's source video already lives in — any path, any drive, completely unrelated to this repo. Never require the user's footage to be moved into `video-use/` first, and never write outputs inside the `video-use/` project directory itself. (`video-use/raw-video/` existing as a gitignored convenience staging spot for some past sessions does NOT mean footage has to go there — it's one option among infinite, never a requirement.)
 
 Everything else in this document is a worked example. Deviate whenever the material calls for it.
 
 ## Directory layout
 
-The skill lives in `video-use/`. User footage lives wherever they put it. All session outputs go into `<videos_dir>/edit/`.
+The skill lives in `video-use/` (this repo, fixed location). User footage lives wherever the user puts it — a Desktop folder, a different project's folder, another drive, anywhere — with zero requirement that it sit inside or near this repo. `<videos_dir>` always means "the folder the source video is currently in," resolved fresh per-video, per-session. All session outputs go into `<videos_dir>/edit/`, created as a sibling of the source file(s), wherever that turns out to be.
 
 ```
 <videos_dir>/
