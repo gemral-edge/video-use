@@ -22,6 +22,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import re
 import subprocess
@@ -146,6 +147,31 @@ def is_portrait_source(video: Path) -> bool:
         return False
 
 
+@functools.lru_cache(maxsize=None)
+def source_fps(video: Path) -> str:
+    """Return the source frame rate as an ffmpeg -r value (e.g. '30/1').
+
+    Preserves the source cadence instead of silently forcing 24fps (which
+    causes 30->24 judder + drops frames). Falls back to '24' if probing fails.
+    Cached per source path.
+    """
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "v:0",
+             "-show_entries", "stream=r_frame_rate",
+             "-of", "default=noprint_wrappers=1:nokey=1", str(video)],
+            capture_output=True, text=True, check=True,
+        )
+        r = out.stdout.strip()
+        if "/" in r:
+            n, d = r.split("/")
+            if int(d) and 1 <= int(n) / int(d) <= 120:
+                return r
+        return r or "24"
+    except Exception:
+        return "24"
+
+
 # -------- Per-segment extraction (Rule 2 + Rule 3) --------------------------
 
 
@@ -203,7 +229,7 @@ def extract_segment(
         "-vf", vf,
         "-af", af,
         "-c:v", "libx264", "-preset", preset, "-crf", crf,
-        "-pix_fmt", "yuv420p", "-r", "24",
+        "-pix_fmt", "yuv420p", "-r", source_fps(source),
         "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
         "-movflags", "+faststart",
         str(out_path),

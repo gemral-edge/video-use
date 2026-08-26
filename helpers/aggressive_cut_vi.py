@@ -162,11 +162,28 @@ def transcribe_dual(video: Path, edit_dir: Path, language: str, key: str) -> tup
             print(f"    saved {orig.name} in {time.time()-t0:.1f}s")
 
         if not clean.exists():
-            print("  scribe pass 2: clean (no diarize, no events)", flush=True)
-            t0 = time.time()
-            data = call_scribe(audio, key, language, diarize=False, tag_events=False)
-            clean.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-            print(f"    saved {clean.name} in {time.time()-t0:.1f}s")
+            # Pass 2 exists only to repair broken tokens (Scribe collapsing content
+            # into >5s blobs on noisy sources). If pass 1 already has 0 broken tokens,
+            # pass 2 is pure waste — it doubles ElevenLabs credits and (incident
+            # 2026-06-30) hard-fails the whole run when quota is low. Gate it.
+            o = json.load(open(orig, encoding="utf-8"))
+            owords = [w for w in o.get("words", []) if w.get("type") == "word"]
+            broken = sum(1 for w in owords if (w["end"] - w["start"]) > BROKEN_TOKEN_DURATION)
+            if broken == 0:
+                print(f"  pass 1 clean ({len(owords)} words, 0 broken) → SKIP pass 2 (saves ~50% credits)")
+                clean.write_bytes(orig.read_bytes())
+            else:
+                print(f"  scribe pass 2: clean (no diarize, no events)  [{broken} broken tokens in pass 1]", flush=True)
+                t0 = time.time()
+                try:
+                    data = call_scribe(audio, key, language, diarize=False, tag_events=False)
+                    clean.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+                    print(f"    saved {clean.name} in {time.time()-t0:.1f}s")
+                except SystemExit as e:
+                    # call_scribe sys.exits on non-200 (e.g. 401 quota_exceeded).
+                    # Don't kill the run — fall back to pass 1 as clean.
+                    print(f"  ⚠ pass 2 failed ({e}) → fallback: using pass 1 as clean")
+                    clean.write_bytes(orig.read_bytes())
 
     return orig, clean
 
