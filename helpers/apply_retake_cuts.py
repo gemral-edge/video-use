@@ -154,6 +154,17 @@ def main():
         for pi, (a, b) in enumerate(runs):
             ps = r["start"] if a == 0 else max(0.0, ws[a]["start"] - HEAD_PAD)
             pe = r["end"] if b == len(ws) - 1 else min(r["end"], ws[b]["end"] + TAIL_PAD)
+            # Clamp padding so it never bleeds into an adjacent word we just cut.
+            # At normal speech pace the gap to the next/prev word is often <
+            # HEAD_PAD/TAIL_PAD (20-60ms), so the naive pad above can eat 20-60ms
+            # of the very retake we're trying to remove — audible as a clipped
+            # syllable at the cut. Half-split the real gap instead of the fixed pad.
+            if a > 0:
+                gap = ws[a]["start"] - ws[a - 1]["end"]
+                ps = max(ps, ws[a]["start"] - max(0.0, gap / 2))
+            if b < len(ws) - 1:
+                gap = ws[b + 1]["start"] - ws[b]["end"]
+                pe = min(pe, ws[b]["end"] + max(0.0, gap / 2))
             if pe - ps < MIN_PIECE:
                 continue
             nr = dict(r)
