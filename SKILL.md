@@ -340,7 +340,7 @@ Trigger: chị đưa `CC_<TÊN VIDEO>.mp4` + yêu cầu cắt pause ≥1s / fill
 5. **Câu chào cuối**: render.py chỉ đệm ~80ms sau từ cuối → luôn nới `ranges[-1].end` thêm ~0.7s (không vượt duration nguồn). Lỗi cũ: mất "hẹn gặp lại".
 6. Render nền (`run_in_background`, ~30 phút cho 30 phút nguồn). Verify: ffprobe video vs audio duration lệch <0.1s (A/V sync), loudnorm summary Integrated ≈ -14 LUFS, ebur128 4s cuối còn tiếng nói.
 7. **Đặt tên output**: `edit/CUT_<TÊN VIDEO>.mp4` (bỏ tiền tố `CC_`), KHÔNG để `final.mp4`. `base.mp4` là nháp, hỏi chị trước khi xoá.
-8. **Giao lên Drive** (jenniesub1): thư mục `J:\My Drive\Social Media Jennie\Footage Tổng Hợp\YOUTUBE6\<TÊN VIDEO>\` (folder 2026 id `1u0GDjEGW2e0RjiLXWNsTxrpqXHXMscrt`). Thiếu ổ J: → bật `C:\Program Files\Google\Drive File Stream\<ver>\GoogleDriveFS.exe`, chờ ~25s. Tạo thư mục tên video rồi `cp` file vào. Drive MCP `create_file` KHÔNG upload nổi file video trăm MB (base64) — chỉ dùng nó tạo folder/kiểm tra.
+8. **Giao lên Drive** (jenniesub1): thư mục `J:\My Drive\Social Media Jennie\Footage Tổng Hợp\YOUTUBE\2026\<TÊN VIDEO>\` (folder 2026 id `1u0GDjEGW2e0RjiLXWNsTxrpqXHXMscrt`). Thiếu ổ J: → bật `C:\Program Files\Google\Drive File Stream\<ver>\GoogleDriveFS.exe`, chờ ~25s. Tạo thư mục tên video rồi `cp` file vào. Drive MCP `create_file` KHÔNG upload nổi file video trăm MB (base64) — chỉ dùng nó tạo folder/kiểm tra.
 
 Retake patterns gặp ở video này (2026-10-04, 31.8→17.2 phút): đuôi câu kết `??`/`--`/`,` rồi khối sau nói lại cả câu → `tails`; khối chỉ lặp lại vế cuối của khối trước ("Bạn tự mãn, phán xét thiên hạ.") → `drops`; hai lần nói ví dụ (iPhone) → cắt tail lần đầu, giữ lần sau.
 
