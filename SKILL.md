@@ -329,6 +329,21 @@ Things that consistently fail regardless of style:
 - **Delegating semantic dedup to an external LLM (Gemini) when an in-loop LLM is driving.** You are the judge — read the transcript and decide. An external Flash pass is weaker, rate-limited, and (incident 2026-06-20) silently returned "0 cuts" after caching 69/82 empty 429 responses. Reserve `--llm-review` for standalone/headless runs only.
 - **Rendering before verifying at the text layer.** A render is ~30 min; reading the new EDL's transitions as text is ~5s and catches broken/cut-off sentences before you burn the render. Verify EDL/text first, pixels second.
 
+## Jennie YouTube standard run (CC_*.mp4 talking head) — chạy nguyên luồng, không hỏi
+
+Trigger: chị đưa `CC_<TÊN VIDEO>.mp4` + yêu cầu cắt pause ≥1s / filler / retake + link kịch bản. Đây là standing directive → bỏ qua Hard Rule 11 (không trình strategy), chạy thẳng:
+
+1. **Key**: `ELEVENLABS_API_KEY` lấy từ env hoặc `.env` repo. Nếu chị dán key trong chat → chỉ `export` trong lệnh, KHÔNG ghi vào file nào, cuối báo chị đổi key.
+2. `aggressive_cut_vi.py <video> --no-render` (gap 1.0, LLM review OFF).
+3. Dump text từng range + liệt kê từ KHÔNG nằm trong range nào (xác nhận không rơi mất nội dung thật). Đọc **kịch bản làm oracle**: câu kịch bản chỉ có 1 lần mà transcript nói 2 lần = retake.
+4. `cuts.json` → `apply_retake_cuts.py` (exit 0 bắt buộc) → dump đầu/cuối mỗi range đọc mối nối.
+5. **Câu chào cuối**: render.py chỉ đệm ~80ms sau từ cuối → luôn nới `ranges[-1].end` thêm ~0.7s (không vượt duration nguồn). Lỗi cũ: mất "hẹn gặp lại".
+6. Render nền (`run_in_background`, ~30 phút cho 30 phút nguồn). Verify: ffprobe video vs audio duration lệch <0.1s (A/V sync), loudnorm summary Integrated ≈ -14 LUFS, ebur128 4s cuối còn tiếng nói.
+7. **Đặt tên output**: `edit/CUT_<TÊN VIDEO>.mp4` (bỏ tiền tố `CC_`), KHÔNG để `final.mp4`. `base.mp4` là nháp, hỏi chị trước khi xoá.
+8. **Giao lên Drive** (jenniesub1): thư mục `J:\My Drive\Social Media Jennie\Footage Tổng Hợp\YOUTUBE6\<TÊN VIDEO>\` (folder 2026 id `1u0GDjEGW2e0RjiLXWNsTxrpqXHXMscrt`). Thiếu ổ J: → bật `C:\Program Files\Google\Drive File Stream\<ver>\GoogleDriveFS.exe`, chờ ~25s. Tạo thư mục tên video rồi `cp` file vào. Drive MCP `create_file` KHÔNG upload nổi file video trăm MB (base64) — chỉ dùng nó tạo folder/kiểm tra.
+
+Retake patterns gặp ở video này (2026-10-04, 31.8→17.2 phút): đuôi câu kết `??`/`--`/`,` rồi khối sau nói lại cả câu → `tails`; khối chỉ lặp lại vế cuối của khối trước ("Bạn tự mãn, phán xét thiên hạ.") → `drops`; hai lần nói ví dụ (iPhone) → cắt tail lần đầu, giữ lần sau.
+
 ## Worked example: Vietnamese single-source aggressive cut
 
 For a single talking-head source where the user wants pure cleanup (cut pauses ≥1s, fillers, false starts, repeats), use `helpers/aggressive_cut_vi.py`. It bakes in:
