@@ -333,7 +333,8 @@ Things that consistently fail regardless of style:
 
 Trigger: chị đưa `CC_<TÊN VIDEO>.mp4` + yêu cầu cắt pause ≥1s / filler / retake + link kịch bản. Đây là standing directive → bỏ qua Hard Rule 11 (không trình strategy), chạy thẳng:
 
-1. **Key**: `ELEVENLABS_API_KEY` lấy từ env hoặc `.env` repo. Nếu chị dán key trong chat → chỉ `export` trong lệnh, KHÔNG ghi vào file nào, cuối báo chị đổi key.
+1. **Key**: thứ tự `ELEVENLABS_API_KEY` env → kho xoay tua `helpers/pick_elevenlabs_key.py` (aggressive_cut_vi tự gọi khi chưa có cache transcript, cần ≈1,15 credit/giây nguồn) → `.env`. Xem credit: `pick_elevenlabs_key.py --list`. Nếu chị dán key trong chat → chỉ `export` trong lệnh, KHÔNG ghi vào file nào, cuối báo chị đổi key. (11/11: `.env` key còn 1.655 credit, cần 2.058 → chết quota trong khi EL-02 còn 10.000 — đã nối kho vào pipeline.)
+1b. **Đường dẫn dài (tên thư mục = tên video dài)**: thư mục + file vượt 260 ký tự → `ls`/`cp`/ffmpeg báo "No such file". Lấy tên ngắn 8.3 (`cmd /c dir /x`, hoặc đường dẫn chị đưa dạng `DBOTML~3\CC_DBO~1.MP4`) để chạy pipeline, và **thay `sources` trong `edl_v2.json` bằng đường dẫn 8.3 trước khi render**. Đổi tên/copy file có tên tiếng Việt dài → dùng Python `os.replace`/`shutil.copyfile` với đường dẫn Windows (`J:\...`, KHÔNG `/j/...` kiểu Git Bash — Python không hiểu).
 2. `aggressive_cut_vi.py <video> --no-render` (gap 1.0, LLM review OFF).
 3. Dump text từng range + liệt kê từ KHÔNG nằm trong range nào (xác nhận không rơi mất nội dung thật). Đọc **kịch bản làm oracle**: câu kịch bản chỉ có 1 lần mà transcript nói 2 lần = retake.
 4. `cuts.json` → `apply_retake_cuts.py` (exit 0 bắt buộc) → dump đầu/cuối mỗi range đọc mối nối.

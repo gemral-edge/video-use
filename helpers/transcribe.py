@@ -31,6 +31,8 @@ SCRIBE_URL = "https://api.elevenlabs.io/v1/speech-to-text"
 
 
 def load_api_key() -> str:
+    if os.environ.get("ELEVENLABS_API_KEY"):  # env thắng .env (xoay tua key)
+        return os.environ["ELEVENLABS_API_KEY"]
     for candidate in [Path(__file__).resolve().parent.parent / ".env", Path(".env")]:
         if candidate.exists():
             for line in candidate.read_text().splitlines():

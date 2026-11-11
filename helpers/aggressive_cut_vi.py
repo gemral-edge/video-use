@@ -82,6 +82,8 @@ FILLER_RE = re.compile(r"^(ờ|ừ|ơ|à|ờm|ừm|èm|hờ|ầm|uhm|umm)[.,!?-]
 
 
 def _load_env_key(var: str) -> str:
+    if os.environ.get(var):  # env thắng .env (xoay tua key)
+        return os.environ[var]
     candidates = [
         Path(__file__).resolve().parent.parent / ".env",
         Path(".env"),
@@ -94,8 +96,36 @@ def _load_env_key(var: str) -> str:
     return os.environ.get(var, "")
 
 
-def load_api_key() -> str:
-    v = _load_env_key("ELEVENLABS_API_KEY")
+def _pick_rotating_key(video: Path) -> str:
+    """Pick a key with enough credit from the rotation pool (pick_elevenlabs_key.py).
+
+    Incident 2026-11-11: .env key had 1655 credits, a 30.9-min source needs ~2058
+    (≈1.11 credit/s) → run died with quota_exceeded while EL-02 had 10000 unused.
+    Returns "" when the pool/picker is unavailable so the caller falls back to .env.
+    """
+    picker = Path(__file__).resolve().parent / "pick_elevenlabs_key.py"
+    if not picker.exists():
+        return ""
+    try:
+        dur = float(subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=nw=1:nk=1", str(video)],
+            capture_output=True, text=True, check=True).stdout.strip())
+    except Exception:
+        return ""
+    need = int(dur * 1.15) + 100
+    r = subprocess.run([sys.executable, str(picker), "--need", str(need)],
+                       capture_output=True, text=True)
+    if r.returncode == 0 and r.stdout.strip():
+        print(f"  key: rotation pool → key with ≥{need} credits")
+        return r.stdout.strip()
+    print(f"  ⚠ key pool: {r.stderr.strip()[:120]} → fallback .env key")
+    return ""
+
+
+def load_api_key(video: Path | None = None) -> str:
+    v = os.environ.get("ELEVENLABS_API_KEY") or (_pick_rotating_key(video) if video else "")
+    v = v or _load_env_key("ELEVENLABS_API_KEY")
     if not v:
         sys.exit("ELEVENLABS_API_KEY not found")
     return v
@@ -513,7 +543,8 @@ def main() -> None:
     edit_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"[1/5] Transcribe: {video.name}")
-    api = load_api_key()
+    cached = (edit_dir / "transcripts" / f"{video.stem}.json").exists()
+    api = load_api_key(None if cached else video)  # cached → no credits spent, skip pool probe
     orig_path, clean_path = transcribe_dual(video, edit_dir, args.language, api)
 
     print(f"[2/5] Build hybrid word list")
