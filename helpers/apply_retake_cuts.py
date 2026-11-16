@@ -74,6 +74,50 @@ def count_seq(tokens, anchor):
     return sum(1 for i in range(len(T) - len(A) + 1) if T[i:i + len(A)] == A)
 
 
+REPEAT_N = 6
+
+
+def report_repeats(kept, n=REPEAT_N, cap=25):
+    """Advisory: list n-word runs that still occur >=2x in the KEPT text (16/11).
+
+    Catches retakes the reader missed (the usual complaint: "still lots of repeated sentences").
+    Intentional anaphora also shows up here — it is a to-read list, never an error (exit code
+    is unaffected). Consecutive hits that repeat together are merged into one line.
+    """
+    from collections import defaultdict
+    toks = [k[0] for k in kept]
+    pos = defaultdict(list)
+    for i in range(len(toks) - n + 1):
+        pos[tuple(toks[i:i + n])].append(i)
+    rep = {g: p for g, p in pos.items() if len(p) > 1}
+    if not rep:
+        print(f"repeat-scan: no {n}-word run occurs twice in the kept text")
+        return
+    covered, lines = set(), []
+    for i in range(len(toks) - n + 1):
+        g = tuple(toks[i:i + n])
+        if g not in rep or i in covered or i != rep[g][0]:
+            continue  # report each repeated run once, from its first occurrence
+        L = 1
+        while (i + L) < len(toks) - n + 1:
+            nxt = tuple(toks[i + L:i + L + n])
+            if nxt in rep and [q + L for q in rep[g]] == rep[nxt]:
+                L += 1
+            else:
+                break
+        for q in rep[g]:
+            covered.update(range(q, q + L))
+        words = toks[i:i + n + L - 1]
+        where = ", ".join(f"[r{kept[q][1]} @{kept[q][2]:.0f}s]" for q in rep[g])
+        lines.append(f"   {len(words)}w: {' '.join(words)}  ->  {where}")
+    print(f"repeat-scan: {len(lines)} run(s) of >={n} words still occur 2x+ in the kept text "
+          f"(read context: retake -> cut it; intentional anaphora -> keep):")
+    for ln in lines[:cap]:
+        print(ln)
+    if len(lines) > cap:
+        print(f"   ... +{len(lines) - cap} more")
+
+
 def main():
     ap = argparse.ArgumentParser(description="Apply Claude-decided retake cuts to an EDL (no external API)")
     ap.add_argument("edit_dir", type=Path, help="<videos_dir>/edit dir (has edl.json + transcripts/)")
@@ -100,7 +144,7 @@ def main():
     def win(s, e):
         return [w for w in words if w["end"] > s and w["start"] < e]
 
-    new_ranges, fails, ambigs = [], [], []
+    new_ranges, fails, ambigs, kept_tok = [], [], [], []
     for idx, r in enumerate(base["ranges"]):
         if idx in drops:
             print(f"[{idx:02d}] DROP (whole block)")
@@ -172,6 +216,7 @@ def main():
             nr["beat"] = f"{r.get('beat', 'blk')}" + (f"_{pi}" if len(runs) > 1 else "")
             nr["quote"] = " ".join(w["text"] for w in ws[a:b + 1])[:100]
             new_ranges.append(nr)
+            kept_tok += [(norm(w["text"]), len(new_ranges) - 1, w["start"]) for w in ws[a:b + 1]]
 
     base["ranges"] = new_ranges
     out_path.write_text(json.dumps(base, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -191,6 +236,7 @@ def main():
               f"cut may have eaten real content. Re-read those blocks before render:")
         for idx, k, a, n in ambigs:
             print(f"   [{idx}] {k}: '{a}' ({n} matches)")
+    report_repeats(kept_tok)
     if fails or ambigs:
         raise SystemExit(1)
     print("all anchors matched OK and unique — now verify text reads clean, THEN render")
