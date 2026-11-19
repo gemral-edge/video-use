@@ -118,6 +118,52 @@ def report_repeats(kept, n=REPEAT_N, cap=25):
         print(f"   ... +{len(lines) - cap} more")
 
 
+CUT_MIN_WORDS = 4
+CUT_TWIN_MIN = 0.34
+
+
+def report_cuts(cut_runs, kept, cap=25):
+    """Advisory: list CUT runs that held a finished sentence but have no restated twin (19/11).
+
+    Mirror image of report_repeats. Jennie's rule: cut ONLY a take she abandoned mid-sentence
+    (trailing '...' / '--' / a stub) or a sentence she said twice (drop the first). A complete
+    sentence that occurs ONCE must stay, even if a later sentence paraphrases it. The twin test is
+    trigram containment against the kept text: a real retake re-uses most of its word triples, a
+    unique sentence does not. A hit is a to-check list, never an error (exit code unaffected).
+    """
+    toks = [k[0] for k in kept]
+    # TRIGRAMS, not bigrams: Vietnamese syllables are so common that bigram overlap against 800
+    # kept words is ~46% even for a unique sentence; trigram gave 19% (unique) vs 100% (retakes).
+    tri = set(zip(toks, toks[1:], toks[2:]))
+    done = re.compile(r"(?<![.\-])[.?!][\"'”]*$")
+    hits = []
+    for idx, run in cut_runs:
+        if len(run) < CUT_MIN_WORDS:
+            continue
+        # a word is "finished" if it ends a sentence and is not a trailing '...' / '--' cutoff
+        finished = any(done.search(w["text"]) and "--" not in w["text"] for w in run)
+        if not finished:
+            continue
+        t = [norm(w["text"]) for w in run]
+        bg = list(zip(t, t[1:], t[2:]))
+        if not bg:
+            continue
+        twin = sum(1 for p in bg if p in tri) / len(bg)
+        if twin < CUT_TWIN_MIN:
+            hits.append((idx, run, twin))
+    if not hits:
+        print("cut-scan: every cut run with a finished sentence has a restated twin in the kept text")
+        return
+    print(f"cut-scan: {len(hits)} cut run(s) hold a FINISHED sentence with no restated twin "
+          f"(<{CUT_TWIN_MIN:.0%} word-triple overlap with kept text). Cut ONLY if she abandoned it "
+          f"mid-sentence; a unique complete sentence must stay:")
+    for idx, run, twin in hits[:cap]:
+        txt = " ".join(w["text"] for w in run)
+        print(f"   [r{idx} @{run[0]['start']:.0f}s {len(run)}w twin={twin:.0%}] {txt[:120]}")
+    if len(hits) > cap:
+        print(f"   ... +{len(hits) - cap} more")
+
+
 def main():
     ap = argparse.ArgumentParser(description="Apply Claude-decided retake cuts to an EDL (no external API)")
     ap.add_argument("edit_dir", type=Path, help="<videos_dir>/edit dir (has edl.json + transcripts/)")
@@ -144,10 +190,11 @@ def main():
     def win(s, e):
         return [w for w in words if w["end"] > s and w["start"] < e]
 
-    new_ranges, fails, ambigs, kept_tok = [], [], [], []
+    new_ranges, fails, ambigs, kept_tok, cut_runs = [], [], [], [], []
     for idx, r in enumerate(base["ranges"]):
         if idx in drops:
             print(f"[{idx:02d}] DROP (whole block)")
+            cut_runs.append((idx, win(r["start"], r["end"])))
             continue
         ws = win(r["start"], r["end"])
         keep = [True] * len(ws)
@@ -183,6 +230,18 @@ def main():
                 print(f"[{idx:02d}] note: span '{anchor}' matches {n_hits}x — cutting the FIRST "
                       f"occurrence (documented behaviour)")
             print(f"[{idx:02d}] {kind} OK @word{i} (len {L if kind=='span' else '-'})")
+
+        # contiguous CUT runs -> cut-scan (what we removed from this block)
+        j = 0
+        while j < len(ws):
+            if not keep[j]:
+                k = j
+                while k < len(ws) and not keep[k]:
+                    k += 1
+                cut_runs.append((idx, ws[j:k]))
+                j = k
+            else:
+                j += 1
 
         # contiguous kept runs -> sub-ranges
         runs, j = [], 0
@@ -237,6 +296,7 @@ def main():
         for idx, k, a, n in ambigs:
             print(f"   [{idx}] {k}: '{a}' ({n} matches)")
     report_repeats(kept_tok)
+    report_cuts(cut_runs, kept_tok)
     if fails or ambigs:
         raise SystemExit(1)
     print("all anchors matched OK and unique — now verify text reads clean, THEN render")
