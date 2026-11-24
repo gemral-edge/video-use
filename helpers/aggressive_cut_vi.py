@@ -166,25 +166,7 @@ def call_scribe(audio: Path, key: str, language: str, diarize: bool, tag_events:
     return resp.json()
 
 
-POOL_STORE = Path("C:/Users/Jennie Chu/Desktop/Projects/crypto-pattern-scanner/memory/personal/elevenlabs-keys.json")
-
-
-def _mark_pool_key_exhausted(key: str, store: Path = POOL_STORE) -> None:
-    """Incident 2026-11-24: EL-01 (restricted key, credit unreadable → picker treats it as
-    unlimited) had 188 credits left; picker kept choosing it because the documented
-    'mark exhausted_month on quota_exceeded' step was never implemented. Mark it here so
-    the next run rotates to the next key. Never raises (bookkeeping must not mask the error)."""
-    try:
-        import time as _t
-        d = json.loads(store.read_text(encoding="utf-8"))
-        for k in d.get("keys", []):
-            if k.get("key") == key:
-                k["exhausted_month"] = _t.strftime("%Y-%m")
-                store.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
-                print(f"  ⚠ key {k.get('id')} quota_exceeded → marked exhausted_month; rerun to rotate", file=sys.stderr)
-                return
-    except Exception as e:
-        print(f"  (could not mark key exhausted: {e})", file=sys.stderr)
+from key_pool import POOL_STORE, mark_exhausted as _mark_pool_key_exhausted  # noqa: E402  SSOT 24/11/2026
 
 
 def transcribe_dual(video: Path, edit_dir: Path, language: str, key: str) -> tuple[Path, Path]:

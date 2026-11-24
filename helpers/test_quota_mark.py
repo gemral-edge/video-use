@@ -13,6 +13,9 @@ src = Path(acv.__file__).read_text(encoding="utf-8")
 bad = 0
 if "_mark_pool_key_exhausted(key)" not in src.split("def call_scribe", 1)[1].split("\ndef ", 1)[0]:
     print("FAIL: call_scribe không còn gọi _mark_pool_key_exhausted khi quota_exceeded"); bad += 1
+tsrc = (Path(acv.__file__).parent / "transcribe.py").read_text(encoding="utf-8")
+if "mark_exhausted(api_key)" not in tsrc.split("def call_scribe", 1)[1].split("\ndef ", 1)[0]:
+    print("FAIL: transcribe.call_scribe không còn gọi mark_exhausted khi quota_exceeded"); bad += 1
 with tempfile.TemporaryDirectory() as d:
     store = Path(d) / "keys.json"
     store.write_text(json.dumps({"keys": [{"id": "A", "key": "k1"}, {"id": "B", "key": "k2"}]}), encoding="utf-8")

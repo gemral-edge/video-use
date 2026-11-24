@@ -84,6 +84,9 @@ def call_scribe(
         )
 
     if resp.status_code != 200:
+        if "quota_exceeded" in resp.text:
+            from key_pool import mark_exhausted  # SSOT 24/11/2026: lần sau picker xoay key khác
+            mark_exhausted(api_key)
         raise RuntimeError(f"Scribe returned {resp.status_code}: {resp.text[:500]}")
 
     return resp.json()
